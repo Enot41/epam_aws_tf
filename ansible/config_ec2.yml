@@ -1,0 +1,55 @@
+- name: Install and Configured Apache
+  hosts: all
+  become: yes
+  vars_files:
+    - var.yml
+  tasks:
+  - name: Install Apache
+    yum:
+      name:
+      - httpd
+      - nfs-utils
+      state: present
+      update_cache: yes
+    notify:
+      - start httpd
+  - name: Install add packeage
+    command: amazon-linux-extras install -y lamp-mariadb10.2-php7.2 php7.2
+  - name: Download and unarchove wordpress
+    unarchive:
+      src: https://wordpress.org/latest.tar.gz
+      dest: /tmp/
+      remote_src: yes
+  - name: Copy Wordpress
+    copy:
+      src: /tmp/wordpress/
+      dest: /var/www/html/
+      remote_src: yes
+  - name: Mkdir Uploads
+    ansible.builtin.file:
+      path: /var/www/html/wp-content/uploads
+      state: directory
+  - name: Mount nfs
+    mount:
+      src: "{{ efs_name }}"
+      path: /var/www/html/wp-content/uploads
+      opts: rw,sync,hard,intr
+      state: mounted
+      fstype: nfs
+  - name: Add config for Wordpres
+    template:
+      src: wp-config.php.j2
+      dest: /var/www/html/wp-config.php 
+  - name: Change permissions 
+    file: 
+      path: /var/www/html/wp-content/uploads 
+      owner: apache 
+      group: apache 
+      mode: '0775' 
+      recurse: yes
+  handlers:
+  - name: start httpd
+    service:
+      name: httpd
+      state: restarted
+      enabled: yes
